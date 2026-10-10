@@ -42,7 +42,9 @@ for (const mode of modes) {
       const seats = new Map<string, Seat>();
       for (const p of setup.players) {
         const seat = new LlmSeat(llm, (c) => calls.push(c), () => callSeed++);
-        seats.set(p.name, votes === "random" ? new RandomVoter(seat, makeRng(seed * 31 + p.seat)) : seat);
+        // Mode is mixed in so the two modes' baselines are independent samples.
+        const voteRng = makeRng(seed * 31 + p.seat + (mode === "mr-white" ? 1_000_003 : 0));
+        seats.set(p.name, votes === "random" ? new RandomVoter(seat, voteRng) : seat);
       }
       const start = performance.now();
       const result = await playGame(setup, seats, makeRng(seed));
