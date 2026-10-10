@@ -1,0 +1,23 @@
+{
+  "name": "impostor-agents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Undercover / Mr. White social-deduction game played by local LLM agents, to measure whether a small model plays it well.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "sim": "tsx src/sim/run.ts",
+    "report": "tsx src/sim/report.ts"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "node-llama-cpp": "^3.21.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^3.2.7"
+  }
+}

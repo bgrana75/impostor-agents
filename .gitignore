@@ -1,0 +1,5 @@
+node_modules/
+models/
+*.gguf
+results/raw-tmp/
+.DS_Store
