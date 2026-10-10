@@ -80,6 +80,32 @@ describe("playGame", () => {
     expect(first.text).not.toBe(first.rejected[0]!.text);
   });
 
+  it("retries a vote whose reason says the voter's word, then keeps the target without a reason", async () => {
+    const s = createGame(7, "undercover", WORD_PAIRS, PERSONAS);
+    const seats = new Map<string, Seat>();
+    for (const p of s.players) {
+      seats.set(p.name, {
+        clue: async (_v, rej) => `clue ${p.name} ${rej.length}`,
+        vote: async (_v, c, rej) => ({ target: c[0]!, reason: rej.length < 1 ? `not a ${p.word}` : `still ${p.word}` }),
+        guess: async () => "x",
+      });
+    }
+    const r = await playGame(s, seats, makeRng(7));
+    const v = r.rounds[0]!.votes[0]!;
+    expect(v.rejected).toHaveLength(3);
+    expect(v).toMatchObject({ reason: "", fallback: false });
+  });
+
+  it("asks Mr. White again when he guesses a player's name", async () => {
+    const s = createGame(8, "mr-white", WORD_PAIRS, PERSONAS);
+    const imp = impostorOf(s);
+    const seats = scripted(s, (_v, c) => (c.includes(imp) ? imp : c[0]!));
+    const guesses = [s.players[0]!.name, s.civilianWord];
+    seats.set(imp, { ...seats.get(imp)!, guess: async () => guesses.shift()! });
+    const r = await playGame(s, seats, makeRng(8));
+    expect(r.mrWhiteGuess).toMatchObject({ correct: true, rejected: [{ reason: "that is a player's name, not the word" }] });
+  });
+
   it("replaces an invalid vote with a random fallback", async () => {
     const s = createGame(6, "undercover", WORD_PAIRS, PERSONAS);
     const seats = scripted(s, () => "Nobody");

@@ -2,6 +2,9 @@ import type { Player, VoteEntry } from "./types.js";
 
 export const MAX_ROUNDS = 4;
 export const CLUE_MAX_WORDS = 8;
+export const REASON_MAX_WORDS = 12;
+/** Tries per clue, vote and guess before the engine gives up on that turn. */
+export const ATTEMPTS = 3;
 
 /** Alive players in clue order: the starting seat rotates by one each round. */
 export function turnOrder(players: readonly Player[], alive: ReadonlySet<string>, round: number): Player[] {

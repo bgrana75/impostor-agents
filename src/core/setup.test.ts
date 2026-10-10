@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PERSONAS } from "../data/personas.js";
 import { WORD_PAIRS } from "../data/wordPairs.js";
-import { createGame } from "./setup.js";
+import { createGame, pairFor } from "./setup.js";
 
 describe("createGame", () => {
   it("is reproducible per seed", () => {
@@ -20,6 +20,18 @@ describe("createGame", () => {
   it("gives Mr. White no word", () => {
     const g = createGame(3, "mr-white", WORD_PAIRS, PERSONAS);
     expect(g.players.find((p) => p.role === "impostor")!.word).toBeNull();
+  });
+
+  it("covers 40 distinct pairs with seeds 1-20 across both modes", () => {
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 20; seed++) {
+      for (const mode of ["undercover", "mr-white"] as const) {
+        const pair = pairFor(seed, mode, WORD_PAIRS);
+        expect([pair.a, pair.b]).toContain(createGame(seed, mode, WORD_PAIRS, PERSONAS).civilianWord);
+        seen.add(`${pair.a}/${pair.b}`);
+      }
+    }
+    expect(seen.size).toBe(40);
   });
 
   it("has at least 40 distinct pairs", () => {

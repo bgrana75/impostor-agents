@@ -10,21 +10,7 @@ import {
   type LlamaModel,
 } from "node-llama-cpp";
 import type { GenerateRequest, GenerateResult, Llm, OutputShape } from "../core/types.js";
-
-const gbnfString = (s: string) => JSON.stringify(s);
-
-function gbnf(shape: OutputShape): string {
-  switch (shape.kind) {
-    // Printable ASCII on one line. A word-count grammar was tried and made the model
-    // glue words together and drift into other scripts; length is validated instead.
-    case "clue":
-      return `root ::= [ -~]{1,80}`;
-    case "vote":
-      return `root ::= (${shape.names.map(gbnfString).join(" | ")}) " | " [ -~]{3,160}`;
-    case "guess":
-      return `root ::= [a-zA-Z]{2,24}`;
-  }
-}
+import { gbnf } from "./grammars.js";
 
 /**
  * One context, one sequence, calls strictly sequential: llama.cpp keeps the KV cache

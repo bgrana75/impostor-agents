@@ -10,11 +10,12 @@ import type { Mode, Seat } from "../core/types.js";
 import { PERSONAS } from "../data/personas.js";
 import { WORD_PAIRS } from "../data/wordPairs.js";
 import { LlamaCppLlm } from "../llm/llamaCpp.js";
+import { DEFAULT_MODEL } from "./models.js";
 import type { GameLog, VotePolicy } from "./types.js";
 
 const { values } = parseArgs({
   options: {
-    model: { type: "string", default: "../models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf" },
+    model: { type: "string", default: DEFAULT_MODEL },
     games: { type: "string", default: "10" },
     "first-seed": { type: "string", default: "1" },
     modes: { type: "string", default: "undercover,mr-white" },
@@ -71,7 +72,7 @@ await llm.dispose();
 
 function writeExamplePrompts(mode: Mode, calls: CallLog[]) {
   const pickCall = (kind: string, round: number) => calls.find((c) => c.kind === kind && c.round === round);
-  const shown = [pickCall("clue", 2), pickCall("vote", 2)].filter((c): c is CallLog => !!c);
+  const shown = [pickCall("assess", 2), pickCall("clue", 2), pickCall("vote", 2)].filter((c): c is CallLog => !!c);
   const body = shown
     .map((c) => `## ${c.kind} turn, round ${c.round}, ${c.player}\n\n` +
       c.messages.map((m) => `### ${m.role}\n\n\`\`\`text\n${m.content}\n\`\`\``).join("\n\n") +

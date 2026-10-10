@@ -39,3 +39,10 @@ export function guessIsCorrect(guess: string, word: string): boolean {
   const w = normalize(word);
   return g === w || stem(g) === stem(w);
 }
+
+/** "FIT" or "ODD <word>"; anything unreadable counts as FIT (no change of behaviour). */
+export function parseAssessment(text: string): { odd: boolean; othersWord: string | null } {
+  const m = /^\W*(fit|odd)\b\W*([a-z][a-z'-]*)?/i.exec(firstLine(text));
+  if (!m || m[1]!.toLowerCase() === "fit") return { odd: false, othersWord: null };
+  return { odd: true, othersWord: m[2]?.toLowerCase() ?? null };
+}

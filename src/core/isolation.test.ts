@@ -11,10 +11,13 @@ import type { GameSetup, Mode, Seat } from "./types.js";
 async function playLogged(seed: number, mode: Mode) {
   const setup = createGame(seed, mode, WORD_PAIRS, PERSONAS);
   const rng = makeRng(seed);
-  // Neutral clues (never a secret word) and votes for a seed-dependent candidate.
-  const llm = new FakeLlm((req, i) =>
-    req.shape?.kind === "vote" ? `${req.shape.names[(seed + i) % req.shape.names.length]} | odd clue` : `fake clue ${i}`,
-  );
+  // Neutral clues (never a secret word), votes for a seed-dependent candidate, and
+  // private ODD/FIT answers that carry a unique marker word we can trace.
+  const llm = new FakeLlm((req, i) => {
+    if (req.shape?.kind === "vote") return `${req.shape.names[(seed + i) % req.shape.names.length]} | odd clue`;
+    if (req.shape?.kind === "assess") return i % 2 ? `ODD zqmark${i}` : "FIT";
+    return `fake clue ${i}`;
+  });
   const calls: CallLog[] = [];
   const seats = new Map<string, Seat>(
     setup.players.map((p) => [p.name, new LlmSeat(llm, (c) => calls.push(c), () => 0)]),
@@ -64,16 +67,37 @@ describe("undercover mode hides roles", () => {
   it("never tells anyone their role, and the undercover's private part reads like a civilian's", async () => {
     for (let seed = 1; seed <= 10; seed++) {
       const { setup, calls } = await playLogged(seed, "undercover");
-      const masks = new Set<string>();
+      const masks = { civilian: new Set<string>(), impostor: new Set<string>() };
       for (const c of calls) {
         const priv = privatePart(c);
         expect(priv).not.toMatch(/you are (the |an? )?(undercover|impostor|civilian)/i);
         const p = setup.players.find((x) => x.name === c.player)!;
-        masks.add(priv.replace(p.name, "NAME").replace(p.style, "STYLE").replaceAll(`"${p.word}"`, "WORD").replace(/round \d/, ""));
+        masks[p.role].add(
+          priv
+            .replace(p.name, "NAME")
+            .replace(p.style, "STYLE")
+            .replaceAll(`"${p.word}"`, "WORD")
+            .replace(/round \d/, "")
+            .replace(/zqmark\d+/, "MARK")
+            .replace(/Choose one of: .*\. Reply/, "Choose. Reply"),
+        );
       }
-      // Clue and vote prompts differ by turn type and candidates only, never by role.
-      const generic = [...masks].map((m) => m.replace(/Choose one of: .*\. Reply/, "Choose. Reply"));
-      expect(new Set(generic).size).toBeLessThanOrEqual(2);
+      // Every kind of prompt the undercover sees, civilians see too: nothing depends on role.
+      for (const m of masks.impostor) expect(masks.civilian.has(m), m).toBe(true);
+    }
+  });
+
+  it("keeps each agent's private ODD/FIT answer out of everyone else's prompts", async () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const { calls } = await playLogged(seed, "undercover");
+      const assess = calls.filter((c) => c.kind === "assess");
+      expect(assess.length).toBeGreaterThan(0);
+      expect(assess.every((c) => c.private)).toBe(true);
+      for (const a of assess.filter((c) => c.output.startsWith("ODD"))) {
+        const marker = a.output.split(" ")[1]!;
+        const seenBy = new Set(calls.filter((c) => fullText(c).includes(marker)).map((c) => c.player));
+        expect([...seenBy]).toEqual([a.player]);
+      }
     }
   });
 

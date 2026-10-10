@@ -33,17 +33,24 @@ export interface GameSetup {
 export interface ClueEntry {
   name: string;
   text: string;
-  /** Rejected attempts before the accepted one (or before giving up). */
-  rejected: { text: string; reason: string }[];
+  /** Rejected attempts before the accepted one (or before giving up). Private. */
+  rejected: Rejection[];
   /** True when every attempt was rejected and the player passed. */
   passed: boolean;
+}
+
+export interface Rejection {
+  text: string;
+  reason: string;
 }
 
 export interface VoteEntry {
   voter: string;
   target: string;
   reason: string;
-  /** True when the output could not be parsed and a random target was used. */
+  /** Rejected attempts (unreadable vote, or a reason that broke the rules). Private. */
+  rejected?: Rejection[];
+  /** True when no attempt named a valid target and a random one was used. */
   fallback: boolean;
 }
 
@@ -63,7 +70,7 @@ export interface GameResult {
   winner: Winner;
   /** Round in which the impostor was voted out, if they were. */
   impostorOutRound: number | null;
-  mrWhiteGuess: { guess: string; correct: boolean } | null;
+  mrWhiteGuess: { guess: string; correct: boolean; rejected?: Rejection[] } | null;
   endReason: "impostor-eliminated" | "mr-white-guessed" | "two-left" | "max-rounds";
 }
 
@@ -76,10 +83,12 @@ export interface PlayerView {
   alive: string[];
 }
 
+/** One player. An LLM agent or, later, a human; either way it only ever sees its own view. */
 export interface Seat {
-  clue(view: PlayerView, rejected: { text: string; reason: string }[]): Promise<string>;
-  vote(view: PlayerView, candidates: string[]): Promise<{ target: string; reason: string } | null>;
-  guess(view: PlayerView): Promise<string>;
+  clue(view: PlayerView, rejected: Rejection[]): Promise<string>;
+  /** null when the answer named nobody valid. */
+  vote(view: PlayerView, candidates: string[], rejected: Rejection[]): Promise<{ target: string; reason: string } | null>;
+  guess(view: PlayerView, rejected: Rejection[]): Promise<string>;
 }
 
 // --- LLM interface (implemented in src/llm) ---
@@ -92,7 +101,9 @@ export interface ChatMessage {
 export type OutputShape =
   | { kind: "clue" }
   | { kind: "vote"; names: string[] }
-  | { kind: "guess" };
+  | { kind: "guess"; exclude: string[] }
+  | { kind: "assess"; exclude: string[] }
+  | { kind: "judge" };
 
 export interface GenerateRequest {
   messages: ChatMessage[];

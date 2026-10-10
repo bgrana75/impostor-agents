@@ -1,10 +1,8 @@
-import { checkClue } from "./clue.js";
+import { checkClue, checkGuess, checkReason } from "./clue.js";
 import { guessIsCorrect } from "./parse.js";
 import { pick } from "./rng.js";
-import { MAX_ROUNDS, tally, turnOrder } from "./rules.js";
-import type { GameResult, GameSetup, Player, PlayerView, RoundRecord, Seat, VoteEntry } from "./types.js";
-
-export const CLUE_ATTEMPTS = 3;
+import { ATTEMPTS, MAX_ROUNDS, tally, turnOrder } from "./rules.js";
+import type { GameResult, GameSetup, Player, PlayerView, Rejection, RoundRecord, Seat, VoteEntry } from "./types.js";
 
 /** Snapshot of what `p` may see. Rounds are deep-copied so seats cannot mutate state. */
 function viewFor(setup: GameSetup, p: Player, rounds: RoundRecord[], round: number, alive: Set<string>): PlayerView {
@@ -43,9 +41,9 @@ export async function playGame(
 
     for (const p of turnOrder(setup.players, alive, round)) {
       const earlier = rounds.flatMap((r) => r.clues.filter((c) => !c.passed).map((c) => c.text));
-      const rejected: { text: string; reason: string }[] = [];
+      const rejected: Rejection[] = [];
       let accepted: string | null = null;
-      for (let attempt = 0; attempt < CLUE_ATTEMPTS && accepted === null; attempt++) {
+      for (let attempt = 0; attempt < ATTEMPTS && accepted === null; attempt++) {
         const raw = await seat(p.name).clue(viewFor(setup, p, rounds, round, alive), rejected);
         const check = checkClue(raw, p.word, earlier);
         if (check.ok) accepted = check.text;
@@ -60,12 +58,7 @@ export async function playGame(
     const votes: VoteEntry[] = [];
     for (const p of voters) {
       const candidates = voters.filter((x) => x !== p).map((x) => x.name);
-      const out = await seat(p.name).vote(viewFor(setup, p, rounds, round, alive), candidates);
-      votes.push(
-        out && candidates.includes(out.target)
-          ? { voter: p.name, target: out.target, reason: out.reason, fallback: false }
-          : { voter: p.name, target: pick(rng, candidates), reason: "(no valid vote)", fallback: true },
-      );
+      votes.push(await collectVote(seat(p.name), viewFor(setup, p, rounds, round, alive), p.word, candidates, rng));
     }
     record.votes = votes;
 
@@ -77,11 +70,20 @@ export async function playGame(
       alive.delete(out);
       if (outPlayer === impostor) {
         if (setup.mode === "mr-white") {
-          const guess = await seat(out).guess(viewFor(setup, outPlayer, rounds, round, alive));
-          const correct = guessIsCorrect(guess, setup.civilianWord);
+          const view = viewFor(setup, outPlayer, rounds, round, alive);
+          const rejected: Rejection[] = [];
+          let guess = "";
+          for (let attempt = 0; attempt < ATTEMPTS && !guess; attempt++) {
+            const raw = await seat(out).guess(view, rejected);
+            const check = checkGuess(raw, view.setup.names);
+            if (check.ok) guess = check.text;
+            else rejected.push({ text: raw, reason: check.reason });
+          }
+          const correct = guess !== "" && guessIsCorrect(guess, setup.civilianWord);
+          const mrWhiteGuess = { guess, correct, rejected };
           return correct
-            ? end("impostor", "mr-white-guessed", round, { guess, correct })
-            : end("civilians", "impostor-eliminated", round, { guess, correct });
+            ? end("impostor", "mr-white-guessed", round, mrWhiteGuess)
+            : end("civilians", "impostor-eliminated", round, mrWhiteGuess);
         }
         return end("civilians", "impostor-eliminated", round);
       }
@@ -89,6 +91,36 @@ export async function playGame(
     if (alive.size <= 2) return end("impostor", "two-left");
   }
   return end("impostor", "max-rounds");
+}
+
+/**
+ * A vote is retried when it names nobody valid or its reason breaks the rules. After the
+ * last try a valid target is kept without its reason; with no valid target at all, a
+ * random one is used.
+ */
+async function collectVote(
+  seat: Seat,
+  view: PlayerView,
+  ownWord: string | null,
+  candidates: string[],
+  rng: () => number,
+): Promise<VoteEntry> {
+  const voter = view.me.name;
+  const rejected: Rejection[] = [];
+  let target: string | null = null;
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    const out = await seat.vote(view, candidates, rejected);
+    if (!out || !candidates.includes(out.target)) {
+      rejected.push({ text: out ? `${out.target} | ${out.reason}` : "", reason: "it does not name one of the candidates" });
+      continue;
+    }
+    target = out.target;
+    const check = checkReason(out.reason, ownWord);
+    if (check.ok) return { voter, target, reason: check.text, rejected, fallback: false };
+    rejected.push({ text: `${out.target} | ${out.reason}`, reason: check.reason });
+  }
+  if (target) return { voter, target, reason: "", rejected, fallback: false };
+  return { voter, target: pick(rng, candidates), reason: "", rejected, fallback: true };
 }
 
 function fail(msg: string): never {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { guessIsCorrect, parseClue, parseGuess, parseVote } from "./parse.js";
+import { guessIsCorrect, parseAssessment, parseClue, parseGuess, parseVote } from "./parse.js";
 
 describe("parseClue", () => {
   it("strips labels, quotes and extra lines", () => {
@@ -29,5 +29,15 @@ describe("guesses", () => {
     expect(parseGuess('"Beaches."')).toBe("beaches");
     expect(guessIsCorrect("beaches", "beach")).toBe(true);
     expect(guessIsCorrect("pool", "beach")).toBe(false);
+  });
+});
+
+describe("parseAssessment", () => {
+  it("reads FIT and ODD <word>", () => {
+    expect(parseAssessment("FIT")).toEqual({ odd: false, othersWord: null });
+    expect(parseAssessment("ODD beach")).toEqual({ odd: true, othersWord: "beach" });
+    expect(parseAssessment("odd: Beach.")).toEqual({ odd: true, othersWord: "beach" });
+    expect(parseAssessment("ODD")).toEqual({ odd: true, othersWord: null });
+    expect(parseAssessment("not sure")).toEqual({ odd: false, othersWord: null });
   });
 });

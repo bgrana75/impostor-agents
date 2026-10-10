@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkClue, isDerivative } from "./clue.js";
+import { checkClue, checkGuess, checkReason, isDerivative } from "./clue.js";
 
 describe("checkClue", () => {
   it("accepts a short clue", () => {
@@ -24,5 +24,35 @@ describe("checkClue", () => {
   });
   it("has no word check for Mr. White", () => {
     expect(checkClue("beach", null, []).ok).toBe(true);
+  });
+});
+
+describe("meta clues", () => {
+  it("rejects stage directions and non-answers", () => {
+    for (const c of ["(No clue given)", "pass", "*whispers* sand", "No valid clue", "...", "[skip]"]) {
+      expect(checkClue(c, "beach", []).ok, c).toBe(false);
+    }
+    expect(checkClue("passing waves", "beach", []).ok).toBe(true);
+  });
+});
+
+describe("checkReason", () => {
+  it("applies the word rule and a 12-word cap", () => {
+    expect(checkReason("clues fit a pool, not mine", "beach").ok).toBe(true);
+    expect(checkReason("doesn't match a beach at all", "beach")).toMatchObject({ ok: false });
+    expect(checkReason("beaches have sand", "beach").ok).toBe(false);
+    expect(checkReason("one two three four five six seven eight nine ten eleven twelve thirteen", "x").ok).toBe(false);
+    expect(checkReason("", "x").ok).toBe(false);
+  });
+  it("has no word rule for Mr. White", () => {
+    expect(checkReason("not a beach clue", null).ok).toBe(true);
+  });
+});
+
+describe("checkGuess", () => {
+  it("wants one word that is not a player's name", () => {
+    expect(checkGuess("Shark", ["Theo"])).toEqual({ ok: true, text: "shark" });
+    expect(checkGuess("theo", ["Theo"]).ok).toBe(false);
+    expect(checkGuess("", ["Theo"]).ok).toBe(false);
   });
 });
