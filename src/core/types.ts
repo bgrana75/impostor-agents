@@ -101,7 +101,7 @@ export interface ChatMessage {
 export type OutputShape =
   | { kind: "clue" }
   | { kind: "vote"; names: string[] }
-  | { kind: "guess"; exclude: string[] }
+  | { kind: "guess" }
   | { kind: "assess"; exclude: string[] }
   | { kind: "judge" };
 

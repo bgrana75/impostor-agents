@@ -83,8 +83,7 @@ export class LlmSeat implements Seat {
   }
 
   async guess(view: PlayerView, rejected: Rejection[]): Promise<string> {
-    const shape: OutputShape = { kind: "guess", exclude: view.setup.names };
-    return parseGuess(await this.call("guess", view, rejected.length, guessPrompt(view, rejected), shape));
+    return parseGuess(await this.call("guess", view, rejected.length, guessPrompt(view, rejected), { kind: "guess" }));
   }
 }
 

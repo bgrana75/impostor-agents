@@ -131,12 +131,22 @@ export function votePrompt(
   );
 }
 
+/**
+ * Mr. White's last chance. A bare question over the others' clues: with the rules, the log
+ * and its bluffing instructions in front of it, the model answered with another clue.
+ */
 export function guessPrompt(view: PlayerView, rejected: readonly Rejection[]): ChatMessage[] {
-  return withPrivate(
-    view,
-    [
-      "Guess turn: you were voted out. What is the others' secret word, the thing their clues describe? Reply with that one word, not a player's name.",
-      ...retries(rejected, "guess"),
-    ].join("\n"),
-  );
+  const clues = view.rounds.flatMap((r) => r.clues).filter((c) => c.name !== view.me.name && !c.passed);
+  return [
+    { role: "system", content: "You solve word-guessing puzzles. Reply with one word." },
+    {
+      role: "user",
+      content: [
+        "These clues all describe the same secret word, a common noun:",
+        ...clues.map((c) => `- ${c.text}`),
+        "What is the word? Reply with the word only.",
+        ...retries(rejected, "guess"),
+      ].join("\n"),
+    },
+  ];
 }

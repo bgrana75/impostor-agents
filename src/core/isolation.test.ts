@@ -49,7 +49,8 @@ describe.each(["undercover", "mr-white"] as const)("agent isolation (%s)", (mode
 
   it("each call carries exactly one private part, its own, at the end", async () => {
     const { setup, calls } = await playLogged(11, mode);
-    for (const c of calls) {
+    // The guess turn is a bare puzzle over public clues (checked in agent.test.ts).
+    for (const c of calls.filter((x) => x.kind !== "guess")) {
       expect(c.messages).toHaveLength(2);
       const priv = privatePart(c);
       expect(priv.startsWith(`You are ${c.player},`)).toBe(true);

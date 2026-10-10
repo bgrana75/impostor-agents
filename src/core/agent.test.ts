@@ -57,12 +57,32 @@ describe("ODD/FIT step", () => {
   });
 });
 
+describe("guess prompt", () => {
+  it("lists only the other players' accepted clues", async () => {
+    const v = view("mr-white", 2);
+    v.rounds = [{
+      round: 1,
+      clues: [
+        { name: "Ana", text: "my own bluff", rejected: [], passed: false },
+        { name: "Bo", text: "sticky and sweet", rejected: [{ text: "jam jar", reason: "word" }], passed: false },
+        { name: "Cy", text: "", rejected: [], passed: true },
+      ],
+      votes: [], eliminated: "Ana", eliminatedRole: "impostor",
+    }];
+    const { seat: s, llm } = seat(() => "jam");
+    await s.guess(v, []);
+    const text = lastUser(llm.requests[0]!);
+    expect(text).toContain("- sticky and sweet");
+    expect(text).not.toMatch(/my own bluff|jam jar|Cy/);
+  });
+});
+
 describe("Mr. White prompts", () => {
-  it("tells him to bluff toward the others' word and passes player names to the guess grammar", async () => {
+  it("tells him to bluff toward the others' word, and asks for the noun from the others' clues", async () => {
     const { seat: s, llm } = seat(() => "shark");
     await s.clue(view("mr-white", 1), []);
     await s.guess(view("mr-white", 2), []);
     expect(lastUser(llm.requests[0]!)).toContain("give clues that fit THAT word");
-    expect(llm.requests[1]!.shape).toEqual({ kind: "guess", exclude: ["Ana", "Bo", "Cy"] });
+    expect(lastUser(llm.requests[1]!)).toContain("What is the word? Reply with the word only.");
   });
 });

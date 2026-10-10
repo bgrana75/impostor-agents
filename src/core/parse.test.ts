@@ -27,6 +27,8 @@ describe("parseVote", () => {
 describe("guesses", () => {
   it("normalizes and compares by stem", () => {
     expect(parseGuess('"Beaches."')).toBe("beaches");
+    expect(parseGuess("silly and nimble")).toBe("silly and nimble");
+    expect(parseGuess("The word is guitar")).toBe("guitar");
     expect(guessIsCorrect("beaches", "beach")).toBe(true);
     expect(guessIsCorrect("pool", "beach")).toBe(false);
   });

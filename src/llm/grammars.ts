@@ -57,7 +57,9 @@ export function gbnf(shape: OutputShape): string {
       // ~72 characters is about 12 words: long reasons were the main cause of retries.
       return `root ::= (${shape.names.map(lit).join(" | ")}) " | " [ -~]{2,72}`;
     case "guess":
-      return wordExcluding(shape.exclude);
+      // Free single line, validated as one word with retries: a letters-only grammar
+      // glued the model's "silly and nimble" into "sillyandnimble".
+      return `root ::= [a-zA-Z' -]{2,30}`;
     case "assess": {
       // The model tends to name its own word after ODD; the grammar rules that out.
       const [, ...rules] = wordExcluding(shape.exclude, { prefix: "o", banPrefix: true }).split("\n");

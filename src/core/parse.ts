@@ -30,8 +30,9 @@ export function parseVote(text: string, candidates: readonly string[]): { target
   return best ? { target: best.name, reason: line } : null;
 }
 
+/** The whole line, normalized: checkGuess decides whether it is one word. */
 export function parseGuess(text: string): string {
-  return normalize(stripQuotes(firstLine(text))).split(" ")[0] ?? "";
+  return normalize(stripQuotes(firstLine(text)).replace(/[.!]+$/, "").replace(/^the word is:?\s*/i, ""));
 }
 
 export function guessIsCorrect(guess: string, word: string): boolean {

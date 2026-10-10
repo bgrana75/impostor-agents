@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { GameResult, RoundRecord } from "../core/types.js";
-import { clueQuality, cost, outcomes, voteSanity } from "./metrics.js";
+import { blend, clueQuality, cost, outcomes, voteReasons, voteSanity, wilson } from "./metrics.js";
+import type { Judgment } from "./judge.js";
 import type { GameLog } from "./types.js";
 
 const players = ["A", "B", "C", "D"].map((name, seat) => ({
   seat, name, style: "", role: name === "D" ? ("impostor" as const) : ("civilian" as const), word: "w",
 }));
-const vote = (voter: string, target: string) => ({ voter, target, reason: "", fallback: false });
+const vote = (voter: string, target: string) => ({ voter, target, reason: "odd clue", fallback: false });
 const round1: RoundRecord = {
   round: 1,
   clues: [
@@ -27,9 +28,20 @@ const result: GameResult = {
   endReason: "impostor-eliminated",
 };
 
+describe("wilson", () => {
+  it("brackets the observed rate", () => {
+    const [lo, hi] = wilson({ hits: 5, n: 20 });
+    expect(lo).toBeCloseTo(0.112, 2);
+    expect(hi).toBeCloseTo(0.469, 2);
+  });
+});
+
 describe("metrics", () => {
   it("counts civilian votes on the impostor against the random baseline", () => {
-    expect(voteSanity([result])).toEqual([{ round: 1, civilianVotes: 3, hits: 2, baseline: 1 / 3 }]);
+    expect(voteSanity([result])).toEqual([
+      { round: 1, n: 3, hits: 2, baseline: 1 / 3 },
+      { round: "all", n: 3, hits: 2, baseline: 1 / 3 },
+    ]);
   });
 
   it("counts invalid clue attempts and passes", () => {
@@ -38,16 +50,30 @@ describe("metrics", () => {
     expect(q.reasons.get("long")).toBe(2);
   });
 
+  it("counts vote-reason rejections and votes left without a reason", () => {
+    const r = structuredClone(result);
+    r.rounds[0]!.votes[0] = { ...vote("A", "D"), reason: "", rejected: [{ text: "D | w", reason: "contains (x)" }] };
+    expect(voteReasons([r])).toMatchObject({ votes: 4, retried: 1, noReason: 1, fallbacks: 0 });
+  });
+
+  it("computes the blend rate per role and round bucket", () => {
+    const j = (role: "impostor" | "civilian", round: number, civilian: boolean) => ({ role, round, civilian }) as Judgment;
+    const [imp, civ] = blend([j("impostor", 1, true), j("impostor", 2, false), j("impostor", 3, true), j("civilian", 1, true)]);
+    expect(imp).toMatchObject({ round1: { hits: 1, n: 1 }, later: { hits: 1, n: 2 }, all: { hits: 2, n: 3 } });
+    expect(civ!.all).toEqual({ hits: 1, n: 1 });
+  });
+
   it("summarizes outcomes", () => {
-    expect(outcomes([result])).toMatchObject({ civilianWins: 1, mrWhite: { eliminated: 1, correct: 0 } });
+    expect(outcomes([result])).toMatchObject({ civilianWins: 1, mrWhite: { eliminated: 1, correct: 0, wordAbsent: 1 } });
   });
 
   it("estimates phone time from evaluated and generated tokens", () => {
     const log: GameLog = {
-      model: "m", promptVersion: 3, votes: "model", wallMs: 1000, result,
+      model: "Qwen3-4B.gguf", promptVersion: 3, votes: "model", wallMs: 1000, result,
       calls: [{ player: "A", kind: "clue", round: 1, attempt: 0, promptTokens: 220, evaluatedTokens: 22, generatedTokens: 5, ms: 1, output: "" }],
     };
     const pixel = cost([log]).phones[0]!;
+    expect(pixel.name).toBe("Pixel 6a (6 GB)");
     expect(pixel.cachedSec).toBeCloseTo(22 / 22 + 5 / 5);
     expect(pixel.uncachedSec).toBeCloseTo(220 / 22 + 5 / 5);
   });
