@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GameResult, RoundRecord } from "../core/types.js";
-import { blend, clueQuality, cost, outcomes, voteReasons, voteSanity, wilson } from "./metrics.js";
+import { agentCost, blend, clueQuality, clueShape, cost, outcomes, voteReasons, voteSanity, votesByPosition, wilson } from "./metrics.js";
 import type { Judgment } from "./judge.js";
 import type { GameLog } from "./types.js";
 
@@ -76,5 +76,33 @@ describe("metrics", () => {
     expect(pixel.name).toBe("Pixel 6a (6 GB)");
     expect(pixel.cachedSec).toBeCloseTo(22 / 22 + 5 / 5);
     expect(pixel.uncachedSec).toBeCloseTo(220 / 22 + 5 / 5);
+  });
+});
+
+describe("run 3 metrics", () => {
+  it("counts votes by speaking position against an even split", () => {
+    const rows = votesByPosition([result]);
+    // Clue order A, B; civilian votes A->D, B->D, C->A: only A (pos 1) is a speaker who got votes.
+    expect(rows.map((r) => r.pos)).toEqual([1, 2]);
+    expect(rows[0]!.got).toBe(1);
+  });
+
+  it("measures the 'X and Y' share and openers", () => {
+    const s = clueShape(["sunny and sweet", "A tall glass", "sour and sticky", "a clear pane"]);
+    expect(s).toMatchObject({ n: 4, andShape: 2 });
+    expect(s.top[0]).toEqual(["a", 2]);
+  });
+
+  it("excludes the human seat's calls from agent cost", () => {
+    const call = (player: string, kind: "clue" | "vote") =>
+      ({ player, kind, round: 1, attempt: 0, promptTokens: 220, evaluatedTokens: 22, generatedTokens: 5, ms: 1000, output: "" });
+    const log: GameLog = {
+      model: "Qwen3-4B.gguf", promptVersion: 5, votes: "model", wallMs: 1, result, humanSeat: "B",
+      calls: [call("A", "clue"), call("B", "clue"), call("A", "vote"), call("C", "vote")],
+    };
+    const c = agentCost([log]);
+    expect(c.callsPerRound).toBe(3);
+    expect(c.mac).toMatchObject({ round: 3, firstClue: 1, votePhase: 2 });
+    expect(c.phones[0]!.cached.firstClue).toBeCloseTo(2);
   });
 });

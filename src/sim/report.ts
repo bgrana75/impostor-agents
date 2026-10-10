@@ -15,6 +15,8 @@ const { values } = parseArgs({
     examples: { type: "string", default: "" },
     notes: { type: "string", default: "results/observations.md" },
     out: { type: "string", default: "results/REPORT.md" },
+    // Newer runs' sections, placed above this report (each written by its own script).
+    top: { type: "string", default: "results/run3/REPORT.md" },
   },
 });
 
@@ -214,7 +216,12 @@ function examplesSection(): string {
 }
 
 const notes = existsSync(values.notes) ? readFileSync(values.notes, "utf8").trim() : "";
-const report = `# Impostor agents: run 2 report
+const top = values.top.split(",").filter((p) => existsSync(p)).map((p) => readFileSync(p, "utf8").trim()).join("\n\n");
+const report = `# Impostor agents: simulation report
+
+${top}
+
+# Run 2
 
 Prompt v${runs[0]!.logs[0]?.promptVersion}. Per model: ${runs.map((r) => `${r.label}: ${r.logs.length} games`).join("; ")}.
 Each seed is played twice, once with model votes and once with clues from the model and **uniformly random votes**.

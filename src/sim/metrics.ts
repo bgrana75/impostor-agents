@@ -206,3 +206,82 @@ export function cost(logs: GameLog[]) {
 export function group(logs: GameLog[], mode: Mode, votes: VotePolicy): GameLog[] {
   return logs.filter((l) => l.result.setup.mode === mode && l.votes === votes);
 }
+
+// --- run 3: human impostor vs five agent civilians ---------------------------------
+
+/** Civilians voted out per game (each one a wrong elimination). */
+export function wrongEliminations(results: GameResult[]): number {
+  return mean(results.map((r) => r.rounds.filter((rd) => rd.eliminatedRole === "civilian").length));
+}
+
+/**
+ * Civilian votes received, by the target's position in that round's clue order, against
+ * an even split: a fairness check for "votes follow seat order, not clues".
+ */
+export function votesByPosition(results: GameResult[]) {
+  const got = new Map<number, number>();
+  const expected = new Map<number, number>();
+  for (const r of results) {
+    for (const rd of r.rounds) {
+      const order = rd.clues.map((c) => c.name);
+      for (const v of rd.votes) {
+        if (roleOf(r, v.voter) !== "civilian") continue;
+        bump(got, order.indexOf(v.target));
+        // Under even voting, each other speaker gets 1/(n-1) of this vote.
+        for (const [i, name] of order.entries()) if (name !== v.voter) bump(expected, i, 1 / (order.length - 1));
+      }
+    }
+  }
+  return [...expected.keys()].sort((a, b) => a - b).map((pos) => ({ pos: pos + 1, got: got.get(pos) ?? 0, expected: expected.get(pos)! }));
+}
+
+/** Share of accepted clues shaped "X and Y …", and the most common opening words. */
+export function clueShape(texts: string[]) {
+  const openers = new Map<string, number>();
+  for (const t of texts) bump(openers, t.toLowerCase().replace(/[^a-z' ]/g, " ").trim().split(/\s+/)[0] ?? "");
+  return {
+    n: texts.length,
+    andShape: texts.filter((t) => /^\W*\w+ and \w+/i.test(t)).length,
+    top: [...openers].sort((a, b) => b[1] - a[1]).slice(0, 10),
+  };
+}
+
+/**
+ * Agent-only cost per round (the human seat's calls excluded) and what the human waits
+ * for: the first agent clue of a round, a clue turn on average, and the whole vote phase.
+ */
+export function agentCost(logs: GameLog[]) {
+  const rates = phoneRates(logs[0]?.model ?? "");
+  type Call = GameLog["calls"][number];
+  const secs = (cs: Call[], read: number, write: number, cached: boolean) =>
+    cs.reduce((s, c) => s + (cached ? c.evaluatedTokens ?? c.promptTokens : c.promptTokens) / read + c.generatedTokens / write, 0);
+  const macSecs = (cs: Call[]) => cs.reduce((s, c) => s + c.ms, 0) / 1000;
+  const rounds = logs.flatMap((l) =>
+    l.result.rounds.map((rd) => {
+      const agent = l.calls.filter((c) => c.round === rd.round && c.player !== l.humanSeat);
+      const firstAgent = rd.clues.find((c) => c.name !== l.humanSeat)?.name;
+      const clueTurns = rd.clues.filter((c) => c.name !== l.humanSeat).map((c) => agent.filter((x) => x.kind === "clue" && x.player === c.name));
+      return {
+        all: agent,
+        first: agent.filter((c) => c.kind === "clue" && c.player === firstAgent),
+        turns: clueTurns,
+        votes: agent.filter((c) => c.kind === "vote"),
+      };
+    }),
+  );
+  const measure = (f: (cs: Call[]) => number) => ({
+    round: mean(rounds.map((r) => f(r.all))),
+    firstClue: mean(rounds.map((r) => f(r.first))),
+    clueTurn: mean(rounds.flatMap((r) => r.turns.map(f))),
+    votePhase: mean(rounds.map((r) => f(r.votes))),
+  });
+  return {
+    callsPerRound: mean(rounds.map((r) => r.all.length)),
+    mac: measure(macSecs),
+    phones: rates.map((p) => ({
+      ...p,
+      cached: measure((cs) => secs(cs, p.read, p.write, true)),
+      uncached: measure((cs) => secs(cs, p.read, p.write, false)),
+    })),
+  };
+}

@@ -9,6 +9,8 @@ model the BOAR app ships) plays it well enough to build an app around. No UI.
 - `src/llm/` — adapters behind one `Llm` interface: `fake` (scripted, for tests) and
   `llamaCpp` (node-llama-cpp, Metal, 4096 context, the model's own Jinja chat template,
   GBNF grammars for the output shape).
+- `src/core/impostors.ts` — scripted stand-ins for a human Mr. White (perfect, copycat,
+  generic, off-topic) used by run 3.
 - `src/sim/` — harness: plays N seeded games per mode and logs every call to
   `<dir>/games.jsonl`; `judge.ts` asks the model which word each clue describes
   (`<dir>/judge.jsonl`); `report.ts` writes `results/REPORT.md`.
@@ -31,4 +33,9 @@ npm run sim -- --games 20 --out results/run2            # both modes, model vote
 npm run sim -- --games 20 --out results/run2-1.5b --model ../models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
 npm run judge -- --dir results/run2                     # post-hoc bluff judge (4B by default)
 npm run report -- --examples "run2:mr-white-15:model:Title"   # -> results/REPORT.md
+
+# Run 3: human Mr. White (scripted strategies) vs five agent civilians, mode B only
+npm run sim3 -- --games 20 --out results/run3
+npm run judge -- --kind inform --dir results/run3 --modes mr-white --votes model,random
+npm run report3 -- --examples "copycat:5:model:Title"     # -> results/run3/REPORT.md (top of REPORT.md)
 ```

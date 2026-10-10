@@ -10,6 +10,7 @@
     "sim": "tsx src/sim/run.ts",
     "sim3": "tsx src/sim/run3.ts",
     "judge": "tsx src/sim/judge.ts",
+    "report3": "tsx src/sim/report3.ts",
     "report": "tsx src/sim/report.ts"
   },
   "license": "MIT",
