@@ -42,15 +42,17 @@ export async function playGame(
     for (const p of turnOrder(setup.players, alive, round)) {
       const earlier = rounds.flatMap((r) => r.clues.filter((c) => !c.passed).map((c) => c.text));
       const rejected: Rejection[] = [];
+      const names = setup.players.map((x) => x.name);
       let accepted: string | null = null;
+      let trimmed = false;
       for (let attempt = 0; attempt < ATTEMPTS && accepted === null; attempt++) {
         const raw = await seat(p.name).clue(viewFor(setup, p, rounds, round, alive), rejected);
-        const check = checkClue(raw, p.word, earlier);
-        if (check.ok) accepted = check.text;
+        const check = checkClue(raw, p.word, earlier, names);
+        if (check.ok) [accepted, trimmed] = [check.text, !!check.trimmed];
         else rejected.push({ text: raw, reason: check.reason });
       }
       // Rejected attempts stay private: a rejected clue may contain the player's word.
-      record.clues.push({ name: p.name, text: accepted ?? "", rejected, passed: accepted === null });
+      record.clues.push({ name: p.name, text: accepted ?? "", rejected, passed: accepted === null, ...(trimmed ? { trimmed } : {}) });
     }
 
     // Votes are simultaneous: every voter sees the same log, without this round's votes.

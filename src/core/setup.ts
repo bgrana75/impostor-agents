@@ -14,11 +14,17 @@ export function pairFor(seed: number, mode: Mode, pairs: readonly WordPair[]): W
   return order[((slot % order.length) + order.length) % order.length]!;
 }
 
+export interface DealOptions {
+  /** Fix the impostor's seat (run 3 rotates it by seed so seat order can't predict the role). */
+  impostorSeat?: number;
+}
+
 export function createGame(
   seed: number,
   mode: Mode,
   pairs: readonly WordPair[],
   personas: readonly Persona[],
+  opts: DealOptions = {},
 ): GameSetup {
   if (personas.length < SEATS) throw new Error(`need ${SEATS} personas`);
   // Mode is mixed into the seed so the two modes are independent deals.
@@ -26,7 +32,8 @@ export function createGame(
   const pair = pairFor(seed, mode, pairs);
   const [civilianWord, otherWord] = rng() < 0.5 ? [pair.a, pair.b] : [pair.b, pair.a];
   const cast = shuffle(rng, personas).slice(0, SEATS);
-  const impostorSeat = Math.floor(rng() * SEATS);
+  const drawnSeat = Math.floor(rng() * SEATS);
+  const impostorSeat = opts.impostorSeat ?? drawnSeat;
   const impostorWord = mode === "undercover" ? otherWord : null;
 
   const players: Player[] = cast.map((p, seat) => {
@@ -40,4 +47,9 @@ export function createGame(
     };
   });
   return { id: `${mode}-${seed}`, seed, mode, civilianWord, impostorWord, players };
+}
+
+/** Run 3's rotation: seeds 1, 2, 3, ... put the impostor in seats 0, 1, 2, ... */
+export function rotatedSeat(seed: number): number {
+  return (((seed - 1) % SEATS) + SEATS) % SEATS;
 }

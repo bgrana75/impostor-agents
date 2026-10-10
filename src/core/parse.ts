@@ -7,7 +7,7 @@ function firstLine(text: string): string {
 }
 
 export function parseClue(text: string, names: readonly string[] = []): string {
-  let line = firstLine(text);
+  let line = firstLine(text).replace(/^[-•]\s*/, "");
   // Models sometimes echo a label: `Clue: ...`, `Clue turn, round 2:** ...` or `Marta: ...`.
   const m = /^\**([^:]{1,25}):\**\s*/.exec(line);
   const label = m ? stripQuotes(m[1]!).toLowerCase() : "";

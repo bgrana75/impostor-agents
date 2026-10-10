@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkClue, checkGuess, checkReason, isDerivative } from "./clue.js";
+import { checkClue, checkGuess, checkReason, isDerivative, trimAtComma } from "./clue.js";
 
 describe("checkClue", () => {
   it("accepts a short clue", () => {
@@ -29,7 +29,7 @@ describe("checkClue", () => {
 
 describe("meta clues", () => {
   it("rejects stage directions and non-answers", () => {
-    for (const c of ["(No clue given)", "pass", "*whispers* sand", "No valid clue", "...", "[skip]"]) {
+    for (const c of ["(No clue given)", "pass", "*whispers* sand", "No valid clue", "...", "[skip]", "I'm sorry", "I'm not a musician"]) {
       expect(checkClue(c, "beach", []).ok, c).toBe(false);
     }
     expect(checkClue("passing waves", "beach", []).ok).toBe(true);
@@ -54,5 +54,26 @@ describe("checkGuess", () => {
     expect(checkGuess("Shark", ["Theo"])).toEqual({ ok: true, text: "shark" });
     expect(checkGuess("theo", ["Theo"]).ok).toBe(false);
     expect(checkGuess("", ["Theo"]).ok).toBe(false);
+  });
+});
+
+describe("trimming and copied log text", () => {
+  it("cuts an over-long comma list at the last comma that fits", () => {
+    expect(trimAtComma("Bounces when you hit it, always open, glassy, cold, clear")).toBe("Bounces when you hit it, always open, glassy");
+    expect(checkClue("Bounces when you hit it, always open, glassy, cold, clear", "window", [])).toEqual({
+      ok: true, text: "Bounces when you hit it, always open, glassy", trimmed: true,
+    });
+    expect(trimAtComma("one two three four five six seven eight nine, ten")).toBeNull();
+    expect(trimAtComma("A tall, clear glass pane that frames the view and the light")).toBeNull();
+  });
+
+  it("still applies the word and repeat rules after trimming", () => {
+    expect(checkClue("a window pane, very clear, lets in light, keeps rain out", "window", []).ok).toBe(false);
+  });
+
+  it("rejects clues that name a player, mention a round or carry quotes", () => {
+    expect(checkClue("Theo passed.", "window", [], ["Theo"]).ok).toBe(false);
+    expect(checkClue('people like it" (Round 1) - Joe', "window", [], ["Joe"]).ok).toBe(false);
+    expect(checkClue("theory of light", "window", [], ["Theo"]).ok).toBe(true);
   });
 });

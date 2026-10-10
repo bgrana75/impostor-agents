@@ -37,6 +37,8 @@ export interface ClueEntry {
   rejected: Rejection[];
   /** True when every attempt was rejected and the player passed. */
   passed: boolean;
+  /** True when the accepted clue was cut at a comma to fit the length rule. */
+  trimmed?: boolean;
 }
 
 export interface Rejection {

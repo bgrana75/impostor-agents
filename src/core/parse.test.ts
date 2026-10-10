@@ -7,6 +7,7 @@ describe("parseClue", () => {
     expect(parseClue("Clue: salty air")).toBe("salty air");
     expect(parseClue("Marta: salty air", ["Marta"])).toBe("salty air");
     expect(parseClue("Clue turn, Round 4:** earthy, brown")).toBe("earthy, brown");
+    expect(parseClue('- "sticky and sweet"')).toBe("sticky and sweet");
     expect(parseClue("Summer: hot days", ["Marta"])).toBe("Summer: hot days");
   });
 });

@@ -54,3 +54,30 @@ export function parseJudge(text: string): "A" | "B" | null {
   const m = /^\s*([AB])\b/i.exec(text);
   return m ? (m[1]!.toUpperCase() as "A" | "B") : null;
 }
+
+/**
+ * Informativeness: does a clue point at the civilians' word rather than a random
+ * distractor from the pair list (never either word of this game's pair)?
+ */
+export function informItems(r: GameResult, pairs: readonly { a: string; b: string }[], rng: () => number): JudgeItem[] {
+  const { civilianWord } = r.setup;
+  const own = pairs.find((p) => p.a === civilianWord || p.b === civilianWord);
+  const pool = pairs.filter((p) => p !== own).flatMap((p) => [p.a, p.b]);
+  const items: JudgeItem[] = [];
+  for (const rd of r.rounds) {
+    for (const c of rd.clues) {
+      if (c.passed) continue;
+      const distractor = pool[Math.floor(rng() * pool.length)]!;
+      const flip = items.length % 2 === 1;
+      items.push({
+        player: c.name,
+        role: r.setup.players.find((p) => p.name === c.name)!.role,
+        round: rd.round,
+        clue: c.text,
+        options: flip ? [distractor, civilianWord] : [civilianWord, distractor],
+        civilianOption: flip ? "B" : "A",
+      });
+    }
+  }
+  return items;
+}

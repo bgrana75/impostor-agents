@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { NONE_OPTION, judgeItems, judgePrompt, parseJudge } from "./judge.js";
+import { makeRng } from "./rng.js";
+import { NONE_OPTION, informItems, judgeItems, judgePrompt, parseJudge } from "./judge.js";
 import type { GameResult } from "./types.js";
 
 function game(mode: "undercover" | "mr-white"): GameResult {
@@ -45,5 +46,19 @@ describe("judge", () => {
     expect(parseJudge("B")).toBe("B");
     expect(parseJudge(" a.")).toBe("A");
     expect(parseJudge("maybe")).toBeNull();
+  });
+});
+
+describe("informativeness items", () => {
+  const pairs = [{ a: "beach", b: "pool" }, { a: "cat", b: "tiger" }, { a: "tea", b: "coffee" }];
+  it("pits the civilians' word against a distractor from another pair", () => {
+    const items = informItems(game("mr-white"), pairs, makeRng(1));
+    expect(items).toHaveLength(2);
+    for (const i of items) {
+      expect(i.options).toContain("beach");
+      const other = i.options.find((o) => o !== "beach")!;
+      expect(["cat", "tiger", "tea", "coffee"]).toContain(other);
+      expect(i.options[i.civilianOption === "A" ? 0 : 1]).toBe("beach");
+    }
   });
 });

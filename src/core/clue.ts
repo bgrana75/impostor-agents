@@ -31,7 +31,7 @@ export function isDerivative(token: string, word: string): boolean {
   return w.length >= 4 && (t.startsWith(w) || t.endsWith(w));
 }
 
-export type ClueCheck = { ok: true; text: string } | { ok: false; reason: string };
+export type ClueCheck = { ok: true; text: string; trimmed?: boolean } | { ok: false; reason: string };
 
 export function containsWord(text: string, word: string | null): boolean {
   if (!word) return false;
@@ -41,25 +41,48 @@ export function containsWord(text: string, word: string | null): boolean {
 
 const META = /^(pass(es|ed)?|skip|none|nothing|n\/?a|no clue( given)?|i pass|clue|\.+|-+)$/;
 
-/** Stage directions or non-answers copied from the log: "(No clue given)", "pass", "*whispers*". */
-export function isMeta(text: string): boolean {
+/** Stage directions or non-answers copied from the log: "(No clue given)", "pass", "Theo passed.". */
+export function isMeta(text: string, names: readonly string[] = []): boolean {
   const t = text.trim();
-  if (/^[([{*]/.test(t)) return true;
-  return META.test(normalize(t)) || /\bno (valid )?clue\b/i.test(t);
+  if (/^[([{*]/.test(t) || /["()]/.test(t) || /\bround \d/i.test(t)) return true;
+  if (names.some((n) => new RegExp(`\\b${n}\\b`, "i").test(t))) return true;
+  return META.test(normalize(t)) || /\bno (valid )?clue\b/i.test(t) || /^i('m| am) (sorry|not)\b/i.test(t);
 }
 
-export function checkClue(raw: string, ownWord: string | null, earlierClues: readonly string[]): ClueCheck {
-  const text = raw.trim();
-  const tokens = words(text);
-  if (tokens.length === 0) return { ok: false, reason: "empty clue" };
-  if (isMeta(text)) return { ok: false, reason: "not a clue" };
-  if (tokens.length > CLUE_MAX_WORDS) {
-    return { ok: false, reason: `more than ${CLUE_MAX_WORDS} words (it has ${tokens.length}; give 2 to 6 words, not a list)` };
+/**
+ * Over-long clues are usually comma lists ("glassy, cold, always open, bounces when hit");
+ * keep the leading parts that fit. Returns null when nothing of 3+ words fits.
+ */
+export function trimAtComma(text: string): string | null {
+  let kept = "";
+  for (const part of text.split(/[,;]/)) {
+    const next = kept ? `${kept},${part}` : part;
+    if (words(next).length > CLUE_MAX_WORDS) break;
+    kept = next;
+  }
+  // "A tall" is what's left of "A tall, clear glass pane that ...": too little to keep.
+  return words(kept).length >= 3 ? kept.trim() : null;
+}
+
+export function checkClue(
+  raw: string,
+  ownWord: string | null,
+  earlierClues: readonly string[],
+  names: readonly string[] = [],
+): ClueCheck {
+  let text = raw.trim();
+  let trimmed = false;
+  if (words(text).length === 0) return { ok: false, reason: "empty clue" };
+  if (isMeta(text, names)) return { ok: false, reason: "not a clue" };
+  if (words(text).length > CLUE_MAX_WORDS) {
+    const cut = trimAtComma(text);
+    if (!cut) return { ok: false, reason: `more than ${CLUE_MAX_WORDS} words (it has ${words(text).length}; give 2 to 6 words)` };
+    [text, trimmed] = [cut, true];
   }
   if (containsWord(text, ownWord)) return { ok: false, reason: "it contains your secret word or a form of it" };
   const norm = normalize(text);
   if (earlierClues.some((c) => normalize(c) === norm)) return { ok: false, reason: "it repeats an earlier clue" };
-  return { ok: true, text };
+  return trimmed ? { ok: true, text, trimmed } : { ok: true, text };
 }
 
 /** Vote reasons are public too: same word rule as clues, plus a length cap. */

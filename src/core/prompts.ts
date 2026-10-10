@@ -2,14 +2,14 @@ import { CLUE_MAX_WORDS, MAX_ROUNDS } from "./rules.js";
 import type { ChatMessage, Mode, PlayerView, Rejection, RoundRecord } from "./types.js";
 
 /** Bumped whenever prompt wording changes, so results stay comparable. */
-export const PROMPT_VERSION = 4;
+export const PROMPT_VERSION = 5;
 
 // Layout for KV-cache reuse: the system message is identical for every call in a
 // game, the user message starts with the shared public log and ends with the
 // caller's private part, so consecutive calls differ only after the log.
 
 const FORMATS = `Answer formats (one line, nothing else):
-- Clue turn: 2 to 6 plain words, no name or label, not a list. Examples for the word "banana": yellow and curved / monkeys love it
+- Clue turn: 2 to 6 words, no name or label. Examples of different shapes for the word "banana": yellow and curved / monkeys love it / grows in bunches / slippery peel joke / potassium. Vary the shape of your clue; don't copy the examples' pattern.
 - Vote turn: Name | reason in at most 10 words. Never say your own secret word in a reason.
 - Guess turn: one word.`;
 
@@ -74,7 +74,7 @@ export interface Assessment {
 
 function identity(view: PlayerView): string {
   const { me } = view;
-  const who = `You are ${me.name}, ${me.style}. Stay in character, but a clue is 2 to 6 plain words and a vote reason at most 10 words.`;
+  const who = `You are ${me.name}, ${me.style}. Speak in that style, but a clue is 2 to 6 words and a vote reason at most 10 words.`;
   if (me.word !== null) return `${who}\nYour secret word: "${me.word}".`;
   return `${who}
 You are Mr. White: you do not know the word. Read the others' clues, work out what word they describe, and give clues that fit THAT word so you look like one of them. Never admit you don't know the word.`;
@@ -99,7 +99,7 @@ export function assessPrompt(view: PlayerView): ChatMessage[] {
 
 export function cluePrompt(view: PlayerView, rejected: readonly Rejection[], note?: Assessment): ChatMessage[] {
   const word = view.me.word;
-  const lines = [`Clue turn, round ${view.round}. Give your clue: 2 to 6 plain words.`];
+  const lines = [`Clue turn, round ${view.round}. Give an informative clue of 2 to 6 words, in your own style.`];
   if (word) lines.push(`Do not say "${word}" or any form of it.`);
   if (note?.odd) {
     const theirs = note.othersWord ? ` (probably "${note.othersWord}")` : "";
@@ -119,7 +119,9 @@ export function votePrompt(
   const how =
     view.me.word === null || note?.odd
       ? "Vote for the player whose clues look least like the others', so your vote looks like a normal pick."
-      : "Vote for the player whose clues fit your word the worst. Clues that fit your word well mean that player shares it.";
+      : view.setup.mode === "mr-white"
+        ? "Vote for the player whose clue fits the word least. Clues that fit the word well mean that player knows it."
+        : "Vote for the player whose clues fit your word the worst. Clues that fit your word well mean that player shares it.";
   return withPrivate(
     view,
     [
